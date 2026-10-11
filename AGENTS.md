@@ -58,4 +58,6 @@ moodle_scraper/
 
 - Windows 的 `启动下载器.bat` 只负责定位仓库和 Python / 依赖检查；`windows_launcher.py` 通过参数列表调用既有 `main.py`，不要复制下载逻辑。`--mcp` 转发到 `mcp_server`，标准输出不能混入菜单。
 
-- `banner.py` 提供 MUST 校徽字符开场，在认证前由 `RichUI.welcome()` 显示；Windows 菜单共用此函数，子进程用内部环境标记避免重复。MCP 标准输出只允许协议消息，不能加入开场。
+- `banner.py` 提供 MUST 校徽字符开场，在认证前由 `RichUI.welcome()` 显示；Windows 菜单共用此函数，子进程用内部环境标记避免重复。MCP 标准输出只允许协议消息，不能加入开场。校徽使用 12 行 Unicode 描线，标准开场上限 14 行，48 列窗口上限 15 行；旧 Windows 控制台保留普通字符回退。
+
+- MUST 下载课程目录中的学期 / 班级代码匹配 `.gitignore` 的 `/*_-_[0-9][0-9][0-9][0-9]-*/`，这些目录是本地资料，不是源码；不要提交课件或登录状态。

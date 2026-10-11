@@ -9,6 +9,9 @@ from __future__ import annotations
 DEFAULT_LANGUAGE = "zh"
 
 _ZH: dict[str, str] = {
+    "banner.school_compact_ascii": "MACAU UST",
+    "banner.product_short_ascii": "Moodle sync",
+    "banner.product_short": 'Moodle 下载器',
     "banner.school_ascii": "MACAU UNIVERSITY",
     "banner.school_en_1": "Macau University of",
     "banner.school_en_2": "Science and Technology",
@@ -170,6 +173,9 @@ _ZH: dict[str, str] = {
 }
 
 _EN: dict[str, str] = {
+    "banner.school_compact_ascii": "MACAU UST",
+    "banner.product_short_ascii": "Moodle sync",
+    "banner.product_short": 'Moodle sync',
     "banner.school_ascii": "MACAU UNIVERSITY",
     "banner.school_en_1": "Macau University of",
     "banner.school_en_2": "Science and Technology",

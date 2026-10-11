@@ -103,3 +103,29 @@ def test_child_skips_banner_but_still_runs_local_operation(monkeypatch, tmp_path
     assert app.main_impl(AppConfig(), study_root=str(tmp_path)) == 0
     assert '澳門科技大學' not in stream.getvalue()
     assert str(tmp_path) in stream.getvalue().replace('\n', '').replace(' ', '')
+
+
+@pytest.mark.parametrize('width,maximum', [(24,16),(34,16),(48,15),(68,14),(80,14),(120,14)])
+@pytest.mark.parametrize('language', ['zh','en'])
+def test_compact_opening_does_not_push_the_operation_off_screen(width, maximum, language) -> None:
+    stream = StringIO()
+    set_language(language)
+    # Explicit height also fixes the width when tests run under TERM=dumb.
+    console = Console(file=stream, width=width, height=30, force_terminal=True, color_system=None)
+    print_startup_banner(console, AppConfig())
+    output = stream.getvalue()
+    assert len(output.splitlines()) <= maximum
+    assert all(cell_len(line) <= width for line in output.splitlines())
+    if width >= 44:
+        assert any('\u2800' <= char <= '\u28ff' for char in output)
+        assert all(char in output for char in '格物意誠')
+
+
+def test_legacy_windows_keeps_readable_outline_without_braille() -> None:
+    stream = StringIO()
+    console = Console(file=stream, width=80, height=30, legacy_windows=True, color_system=None)
+    print_startup_banner(console, AppConfig())
+    output = stream.getvalue()
+    assert not any('\u2800' <= char <= '\u28ff' for char in output)
+    assert '澳門科技大學' in output and 'MUST Moodle' in output
+    assert len(output.splitlines()) <= 14
