@@ -61,6 +61,42 @@ python -m pip install -r requirements.txt
 
 下文的 `python` 命令均在**仓库根目录、虚拟环境已激活**的情况下执行。以后重新打开终端时，先进入仓库并激活 `.venv`。
 
+### Windows 双击菜单
+
+完成安装后，双击仓库中的 **`启动下载器.bat`** 即可。启动器会定位到自己的仓库目录，优先使用 `.venv\Scripts\python.exe`，其次尝试 `py -3` 和系统 `python`，并检查 Python 版本及依赖。
+
+| 选项 | 功能 |
+| --- | --- |
+| `1` | 同步全部已注册课程，增量补下缺失或损坏的课件 |
+| `2` | 显示课程列表，按序号选择单门课；列表内仍可输入 `0` 同步全部 |
+| `3` | 直接输入 Moodle 课程 ID 下载，没有预设课程编号 |
+| `4` | 设置浏览器、中文 / 英文界面、并行下载线程数 |
+| `5` | 建立或更新本地课件索引，选择课件根目录 |
+| `6` | 导出 Obsidian，自选输出目录、是否复制课件及覆盖已有笔记 |
+| `7` | 生成复习 notebook，自选目录、输出文件、1–60 天和课程范围 |
+| `8` | 显示 MCP 服务命令，可选择在当前窗口启动 |
+| `9` | 查看现有命令行帮助 |
+| `0` | 退出启动菜单 |
+
+菜单中的设置只在当前窗口生效；填写 `default` 恢复使用 `config.toml`，长期设置仍可编辑配置文件。每项操作完成后按提示返回主菜单，继续选择其他操作。首次登录、中文课程名称、文件校验和增量同步与命令行使用同一套逻辑。
+
+也可以在 PowerShell 中给启动器直接传入原有参数，此时跳过菜单：
+
+```powershell
+.\启动下载器.bat --all --workers 8 --browser chrome
+.\启动下载器.bat 118832 --lang en
+.\启动下载器.bat --index "C:\My Courses" --obsidian "C:\My Vault" --copy-files
+.\启动下载器.bat --index "C:\My Courses" --notebook "C:\My Notes\revision.ipynb" --days 7
+```
+
+MCP 使用专门的 `--mcp` 前缀，把后续参数交给本地服务：
+
+```powershell
+.\启动下载器.bat --mcp --root "C:\My Courses"
+```
+
+此模式不输出菜单，标准输出保留给 MCP 协议；手动启动后会等待请求，按 Ctrl+C 停止。双击菜单的 MCP 选项会先显示命令和说明，再由你决定是否启动。下载及学习参数交给原有 `main.py`，文件路径包含空格时请保留引号。
+
 ## 首次登录
 
 ```bash
@@ -323,7 +359,7 @@ python -m moodle_scraper.mcp_server --root .
 
 ### Windows 可以双击启动吗？
 
-仓库保留了 `启动下载器.bat`，其中部分默认课程和范围选项沿用旧项目。MUST 用户请优先使用本文命令；若使用该菜单，选“列出我已注册的课程”，进入课程列表后输入 `0`。该脚本调用系统的 `python`，请确认它已安装项目依赖。
+可以。完成安装后双击 `启动下载器.bat`，选择 `1` 同步全部课程，或选择 `2` / `3` 下载单门课。浏览器、语言、线程数和本地学习功能均可从菜单进入，详见 [Windows 双击菜单](#windows-双击菜单)。启动器优先使用项目 `.venv`，无需先手动激活。
 
 ## 开发与测试
 
@@ -341,6 +377,7 @@ python -m pytest tests/ -q
 | 文件 / 目录 | 职责 |
 | --- | --- |
 | `main.py` | 参数解析及交互入口 |
+| `启动下载器.bat` / `moodle_scraper/windows_launcher.py` | Windows 环境检查、功能菜单及现有命令转发 |
 | `moodle_scraper/auth.py` | 浏览器登录与会话缓存 |
 | `moodle_scraper/scanner.py` | 课程列表、中文名称映射与真实文件链接解析 |
 | `moodle_scraper/downloader.py` | 增量同步、并行下载与同步记录 |
@@ -366,7 +403,7 @@ python -m pip install -r requirements.txt
 python main.py --all --lang en
 ```
 
-For Windows, use the PowerShell installation instructions above. Complete the school's login in the browser opened at [MUST Moodle](https://moodle.must.edu.mo/my/). The session is cached in `moodle_cookies.json`; keep it private. Press Enter to exit after the final report.
+For Windows, use the PowerShell installation instructions above. Then double-click `启动下载器.bat` for the full menu: all/single-course sync, browser/language/workers, local indexing, Obsidian, notebooks and MCP. The launcher uses the project `.venv` first and also forwards existing CLI arguments; `--mcp` directly starts the stdio server without menu output. Complete the school's login in the browser opened at [MUST Moodle](https://moodle.must.edu.mo/my/). The session is cached in `moodle_cookies.json`; keep it private. Press Enter to exit after the final report.
 
 - Run `python main.py`, then enter `0` to sync all enrolled courses, or select a single course by its displayed number / Moodle ID.
 - Run `python main.py --all` again to scan for new resources and missing or invalid local files. Valid existing files are skipped; changed local hashes or changes to the recorded download URL for the same resource trigger a new download.

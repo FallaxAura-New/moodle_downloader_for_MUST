@@ -55,3 +55,5 @@ moodle_scraper/
 - `Scanner` 先解析 Moodle 资源包装页，`Resource` 还携带 `filename`、`source_url`、`error`。解析失败应显示在汇总中，不能静默忽略。
 - `files.py` 负责内容校验；`Downloader` 只有校验通过后才能跳过或原子替换文件。`.moodle-downloads.json` 保存文件名 / 哈希映射，同名资源不能互相覆盖。
 - 批量课程处理使用配置副本；失败时不能显示“全部已是最新”。新增检查均使用离线响应和临时目录。
+
+- Windows 的 `启动下载器.bat` 只负责定位仓库和 Python / 依赖检查；`windows_launcher.py` 通过参数列表调用既有 `main.py`，不要复制下载逻辑。`--mcp` 转发到 `mcp_server`，标准输出不能混入菜单。

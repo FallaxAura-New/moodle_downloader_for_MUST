@@ -1,36 +1,60 @@
-﻿@echo off
+@echo off
+setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
-echo.
-echo   =====================================
-echo     🎓 downloader
-echo   =====================================
-echo.
-echo   1. 下载默认课程 (95383)
-echo   2. 输入课程 ID 下载
-echo   3. 列出我已注册的课程
-echo   4. 扫描发现课程 (95000-100000)
-echo.
-set "choice="
-set /p choice="  请选择 [1-4]: "
+pushd "%~dp0" >nul 2>&1
+if errorlevel 1 goto directory_error
 
-if "%choice%"=="1" python main.py 95383
-if "%choice%"=="2" goto input_course
-if "%choice%"=="3" python main.py
-if "%choice%"=="4" goto discover
-goto end
+set "MUST_PYTHON="
+set "MUST_PYTHON_ARGS="
+if exist ".venv\Scripts\python.exe" goto use_venv
+where py >nul 2>&1
+if errorlevel 1 goto try_python
+py -3 -c "import sys; sys.exit(sys.version_info < (3, 11))" >nul 2>&1
+if errorlevel 1 goto try_python
+set "MUST_PYTHON=py"
+set "MUST_PYTHON_ARGS=-3"
+goto check_dependencies
 
-:input_course
-set "cid="
-set /p cid="  课程 ID: "
-python main.py %cid%
-goto end
+:try_python
+where python >nul 2>&1
+if errorlevel 1 goto python_error
+set "MUST_PYTHON=python"
+goto check_version
 
-:discover
-set "range="
-set /p range="  扫描范围 (直接回车使用 95000-100000): "
-if "%range%"=="" set range=95000-100000
-python main.py --discover %range%
-goto end
+:use_venv
+set "MUST_PYTHON=%CD%\.venv\Scripts\python.exe"
 
-:end
-pause
+:check_version
+"%MUST_PYTHON%" %MUST_PYTHON_ARGS% -c "import sys; sys.exit(sys.version_info < (3, 11))" >nul 2>&1
+if errorlevel 1 goto python_error
+
+:check_dependencies
+"%MUST_PYTHON%" %MUST_PYTHON_ARGS% -c "import requests, bs4, selenium, rich" >nul 2>&1
+if errorlevel 1 goto dependency_error
+"%MUST_PYTHON%" %MUST_PYTHON_ARGS% -m moodle_scraper.windows_launcher %*
+set "MUST_EXIT_CODE=%ERRORLEVEL%"
+goto finish
+
+:python_error
+>&2 echo MUST Moodle: 请安装 Python 3.11 或更新版本，并检查项目的 .venv。
+>&2 echo Python 3.11+ is required. Check Python and the project .venv.
+goto failure
+
+:dependency_error
+>&2 echo MUST Moodle: 当前 Python 环境缺少依赖，请先运行以下命令：
+>&2 echo Missing dependencies. Run:
+>&2 echo "%MUST_PYTHON%" %MUST_PYTHON_ARGS% -m pip install -r requirements.txt
+goto failure
+
+:failure
+set "MUST_EXIT_CODE=1"
+if "%~1"=="" pause
+
+:finish
+popd
+endlocal & exit /b %MUST_EXIT_CODE%
+
+:directory_error
+>&2 echo MUST Moodle: 无法进入启动器所在目录。Cannot open the launcher directory.
+if "%~1"=="" pause
+endlocal & exit /b 1
