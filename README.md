@@ -1,484 +1,384 @@
-<!-- 本地 MUST 适配说明；下方保留原项目介绍。 -->
+# Moodle Downloader for MUST
 
-## 本地 MUST 版本
+面向澳门科技大学（MUST）的 Moodle 课件下载工具：浏览器登录、中文课程名称、全部课程同步，以及缺失 / 损坏文件的增量补下载。
 
-当前登录和扫描站点为 `https://moodle.must.edu.mo`，可在 `config.toml` 的 `[network].moodle_url` 调整。
-`[course_names]` 按 Moodle 课程 ID 配置中文名称；课程列表同时保留班级代码和 ID，同名课程不会合并。
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-- `python main.py`：输入 **0** 同步全部已注册课程，或按序号 / ID 下载单门课。
-- `python main.py --all`：直接进入全部课程同步，每门课无需重复确认。
-- 首次运行下载扫描到的课件；再次运行校验本地文件，只补下缺失、损坏或已知资源链接变更的文件。
-- 资源页面会先解析成真实文件链接；HTML、登录页、HTTP 错误及不完整 PDF 不会计为下载成功。旧的 HTML 伪 PDF 会在同步时自动重新下载。
-- 每门课目录中的 `.moodle-downloads.json` 记录文件名和校验和，请与课件一起保留。单门课失败不会中断其他课程，最终会列出失败项。
+[项目仓库](https://github.com/FallaxAura-New/moodle_downloader_for_MUST) · [问题反馈](https://github.com/FallaxAura-New/moodle_downloader_for_MUST/issues) · [English quick start](#english-quick-start)
 
-默认筛选仍由 `[filters]` 控制；要接受子页面中的全部文件类型，将 `file_keywords` 和 `file_extensions` 都设为 `[]`。
+默认站点为 [MUST Moodle](https://moodle.must.edu.mo/my/)。本工具供学生下载自己已注册课程的资料，用于个人离线学习；请遵守学校的使用规定及课件版权要求。
 
----
+## 目录
 
-<div align="center">
+- [安装](#安装)
+- [首次登录](#首次登录)
+- [选择课程与全部同步](#选择课程与全部同步)
+- [课程中文名称](#课程中文名称)
+- [增量下载与文件校验](#增量下载与文件校验)
+- [文件保存位置](#文件保存位置)
+- [常用配置](#常用配置)
+- [本地学习与 AI 接入](#本地学习与-ai-接入)
+- [常见问题](#常见问题)
+- [开发与测试](#开发与测试)
 
-# moodle-downloader
+## 安装
 
-**一键同步 UNSW Moodle 课件到本地，然后让 AI 陪你复习。**
-**Sync your UNSW Moodle course materials — then let AI revise them with you.**
+需要 **Python 3.11 或更新版本**、Git，以及 Chrome、Edge、Firefox 中至少一种浏览器。浏览器登录使用 Selenium；缺少驱动时，内置的 Selenium Manager 通常会自动获取匹配驱动，首次启动需要能访问驱动下载服务，详见 [Selenium 官方说明](https://www.selenium.dev/documentation/selenium_manager/)。
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
-[![MCP](https://img.shields.io/badge/MCP-ready-8A63D2)](#ai-revision)
-[![Version](https://img.shields.io/badge/version-2.2.0-informational)](https://github.com/KunyQi/moodle-downloader/releases)
+### macOS / Linux
 
-[中文版](#中文版) · [English Version](#english-version)
-
-</div>
-
-<div align="center">
-
-**下载器 + AI 复习助手**　·　Okta SSO 登录　·　24 线程并行　·　MCP · Obsidian · Jupyter　·　中 / EN
-
-</div>
-
-> [!IMPORTANT]
-> **使用声明 / Disclaimer**
->
-> 本工具仅供学生下载**自己已选课程**的课件用于**离线学习**。请遵守你所在院校的 IT 可接受使用政策（IT Acceptable Use Policy）。
->
-> This tool is intended **only** for students downloading materials from courses they are **enrolled in**, for **offline study**. Always comply with your institution's IT Acceptable Use Policy.
-
----
-
-## 中文版
-
-### 简介
-
-`moodle-downloader` 是一个面向 UNSW Moodle（`moodle.telt.unsw.edu.au`）的课程资料下载器。它通过真实浏览器完成 Okta SSO 登录，自动列出你已选的课程，深度扫描课程页面里的 PDF、PPT 等文件，然后并行下载到本地。重复运行时只会补齐新增文件——把它当成课件的"同步"工具即可。
-
-**但下载只是开始。** v2.2.0 起，它内置一个 [MCP](https://modelcontextprotocol.io) 服务，把你的课件变成 **AI agent 能直接查询的知识库**——Claude Code、Claude Desktop 连上之后就能搜课件、看课程总览、排间隔重复复习计划，用你自己的讲义出题考你。还能一键导出 Obsidian 知识库和 Jupyter 复习笔记本。
-
-👉 **[跳到「接入 AI Agent 复习」](#ai-revision)**
-
-<p align="center">
-  <img src="assets/demo-zh.png" alt="moodle-downloader 终端演示（由真实界面渲染生成）" width="760">
-</p>
-
-### 工作原理
-
-1. **登录一次** —— 弹出真实浏览器窗口完成 Okta 验证，登录状态本地保存复用
-2. **选择课程** —— 自动列出你已选的全部课程，输入编号即可
-3. **深度扫描** —— 遍历课程主页与子页面，挖出所有嵌套课件链接
-4. **并行下载** —— 多线程同时下载，已有文件自动跳过，只补新增
-5. **交给 AI** —— 索引课件，接上 agent，开始复习
-
-### 亮点
-
-- 🤖 **AI Agent 接入（MCP）** —— 内置 MCP 服务，Claude Code / Claude Desktop 等客户端直接连；5 个工具覆盖检索、总览与复习排期，手写 JSON-RPC，零额外依赖
-- 🧠 **间隔重复复习计划** —— 按周次与材料类型排序，摊到 N 天，自动安排 d-1 / d-3 / d-7 回顾
-- 📓 **Obsidian 知识库 + Jupyter 笔记本** —— 一条命令导出，笔记带 frontmatter、双链与「空白回忆」自测区
-- **真实浏览器登录，支持 Okta SSO** —— 通过 Selenium 打开浏览器窗口完成登录，cookies 本地持久化并复用，通常只需登录一次
-- **自动列出已选课程** —— 从 Moodle 首页读取你的课程列表，按编号选择，或直接输入课程 ID
-- **深度扫描** —— 除课程主页外，还会钻入子页面，找到别的工具漏掉的嵌套 / 内嵌文件
-- **并行下载** —— 默认 24 线程（可通过 `config.toml` 或 `--workers` 调整）
-- **精致的终端界面** —— 带 ETA 的进度条、含文件类型图标的扫描结果表格、下载报告仪表盘和结果横幅（基于 Rich）
-- **增量同步** —— 已存在于磁盘的文件自动跳过，随时重跑，只下新增
-- **原子写入** —— 先写 `.part` 临时文件再重命名，绝不留下损坏的半成品
-- **按关键词与扩展名过滤** —— 在 `config.toml` 中配置，只下你关心的文件
-- **自动识别课程名** —— 文件保存到与课程同名的文件夹
-- **中英双语界面**（v2.1.0 新增）—— `--lang en` 或配置文件一行切换
-- **浏览器自动检测** —— Chrome → Edge → Firefox 依次尝试，也可用 `--browser` 强制指定
-- **崩溃保护** —— 出错时控制台绝不闪退，错误信息完整可见
-- **Windows 一键启动** —— 双击 `启动下载器.bat` 即可使用
-- **隐私优先** —— 全程本地运行，不经手你的密码，不收集也不上传任何数据
-
-### 安装
-
-需要 **Python 3.11+**。
+在终端中执行：
 
 ```bash
-git clone https://github.com/KunyQi/moodle-downloader.git
-cd moodle-downloader
-pip install -r requirements.txt
+git clone https://github.com/FallaxAura-New/moodle_downloader_for_MUST.git
+cd moodle_downloader_for_MUST
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
-依赖：`requests`、`beautifulsoup4`、`selenium`、`rich`。
+### Windows（PowerShell）
 
-另外需要至少一个浏览器驱动（与你的浏览器版本匹配）：
+```powershell
+git clone https://github.com/FallaxAura-New/moodle_downloader_for_MUST.git
+cd moodle_downloader_for_MUST
+py -3 --version
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-| 浏览器 | 驱动 |
+先确认版本输出为 Python 3.11+。如果 PowerShell 不允许激活虚拟环境，可以直接使用虚拟环境内的解释器：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py --all
+```
+
+运行依赖为 `requests`、`beautifulsoup4`、`selenium`、`rich`，均在 [requirements.txt](requirements.txt) 中。下载课件不需要安装 AI 客户端、Jupyter 或 PDF 文本提取库。
+
+下文的 `python` 命令均在**仓库根目录、虚拟环境已激活**的情况下执行。以后重新打开终端时，先进入仓库并激活 `.venv`。
+
+## 首次登录
+
+```bash
+python main.py
+```
+
+1. 首次运行会询问是否打开浏览器登录 MUST Moodle，输入 `y` 或直接按 Enter。
+2. 程序打开 `https://moodle.must.edu.mo/my/`。在弹出的浏览器中，按学校登录页面的要求完成账号登录和验证。
+3. 返回 Moodle 仪表盘或课程页面后，程序自动读取登录状态、关闭该浏览器窗口，并继续加载课程列表。默认等待登录的时间为 300 秒。
+4. 登录会话保存在本地 `moodle_cookies.json`。后续运行会先检查缓存，失效后重新打开浏览器登录。
+
+浏览器默认按 **Chrome → Edge → Firefox** 的顺序尝试。也可以指定：
+
+```bash
+python main.py --browser chrome
+python main.py --browser edge
+python main.py --browser firefox
+```
+
+`moodle_cookies.json` 包含会话凭据，已被 `.gitignore` 排除。请保留在本机，不要上传到仓库或作为问题附件分享。
+
+## 选择课程与全部同步
+
+### 菜单选择
+
+运行 `python main.py` 后，课程表会同时显示**序号、课程名称、课程代码、Moodle 课程 ID**。
+
+| 输入 | 行为 |
 | --- | --- |
-| Chrome | [chromedriver](https://chromedriver.chromium.org/) |
-| Edge | [msedgedriver](https://developer.microsoft.com/microsoft-edge/tools/webdriver/) |
-| Firefox | [geckodriver](https://github.com/mozilla/geckodriver/releases) |
+| `0` | 同步全部已注册课程 |
+| `a` 或 `all` | 与 `0` 相同 |
+| 表格中的课程序号 | 扫描所选课程，确认后下载 |
+| Moodle 课程 ID，例如 `118832` | 直接扫描该课程，确认后下载 |
+| 空输入（直接 Enter） | 退出选课 |
 
-### 使用
+序号以本次显示的列表为准；课程 ID 与课程代码是不同字段。
+
+### 直接同步全部课程
 
 ```bash
-python main.py                    # 自动登录 → 列出课程 → 选择下载
-python main.py 98120              # 直接下载课程 98120
-python main.py --browser chrome   # 指定浏览器 (chrome / edge / firefox)
-python main.py --lang en          # 界面语言 (zh / en)
-python main.py --workers 8        # 并行下载线程数
+python main.py --all
 ```
 
-Windows 用户也可以直接双击 `启动下载器.bat`。
+程序从当前账号的 Moodle 仪表盘读取已注册课程，**逐门扫描**课程主页、Moodle 页面和文件夹中的受支持文件链接，并在每门课内并行下载。批量同步无需逐门确认；某门课或文件失败后会继续处理其余课程，并在最终报告中列出失败项。
 
-首次运行会打开浏览器窗口，在其中完成 Okta 登录即可；登录状态会保存在本地的 `moodle_cookies.json` 中，之后的运行通常无需再次登录。**该文件包含你的会话凭据，请勿提交到版本库或分享给他人。**
+“全部课程”取决于当前账号仪表盘实际返回的课程；“全部课件”仍受可访问链接、支持的资源类型和筛选配置限制。它不会备份整站，也不会下载测验、作业提交或外部视频平台的全部内容。
 
-### 配置
+`--all` 会跳过选课和逐课确认，但首次登录仍需要在浏览器中操作，运行结束仍需按 Enter 退出。
 
-编辑仓库根目录的 `config.toml`，重新运行即可生效：
+### 下载单门课与常用参数
+
+```bash
+python main.py 118832                      # 大学微积分 I；扫描后确认下载
+python main.py --all --workers 8           # 全部课程，每门课最多 8 个并行下载
+python main.py --all --browser chrome      # 指定登录浏览器
+python main.py --all --lang en             # 英文界面
+```
+
+本 README 的带参数用法统一使用 `python main.py ...`。
+
+## 课程中文名称
+
+中文名称通过 [config.toml](config.toml) 的 `[course_names]` 配置，**以 Moodle 课程 ID 为键**，不依赖列表序号，也不会把同名课程合并。
+
+当前预置：
+
+| Moodle 课程 ID | 中文显示名称 |
+| --- | --- |
+| `118832` | 大学微积分 I |
+| `118856` | 计算机程序设计 |
+| `120070` | 无机与分析化学 |
+| `120178` | 中文阅读与写作 |
+| `121506` | 英文 III |
+| `121558` | 英文 IV |
+| `121706` | 宪法与基本法概论 |
+| `122014` | 科技大师讲座 |
+| `122016` | 科技大师讲座 |
+| `122408` | 大学生活 |
+
+这些映射对应特定课程实例，并非学校所有学期的通用课程编号。使用其他账号或新学期课程时，根据实际 ID 添加或修改即可。
+
+例如，课程地址为 `https://moodle.must.edu.mo/course/view.php?id=118832`，对应配置是：
 
 ```toml
-[download]
-max_workers = 24                          # 并行下载线程数
-
-[filters]
-file_keywords = ["lecture"]               # 文件名关键词（留空 = 全部接受）
-file_extensions = [".pdf", ".ppt", ".pptx"]  # 扩展名白名单（留空 = 全部接受）
-
-[ui]
-language = "zh"                           # 界面语言: "zh" 或 "en"
-
-[browser]
-# type = "chrome"                         # 留空 = 自动检测 (chrome → edge → firefox)
+[course_names]
+"118832" = "大学微积分 I"
+"120178" = "中文阅读与写作"
 ```
 
-<a id="ai-revision"></a>
+在现有 `[course_names]` 下编辑键值即可，不要重复创建同名配置节。保存后重新运行程序生效。
 
-### 🤖 接入 AI Agent 复习（v2.2.0 新增）
+- 没有配置映射的课程仍显示 Moodle 返回的名称。
+- 课程代码和 ID 保留在单独列中，便于区分班级。
+- 两门“科技大师讲座”使用不同 ID，仍作为两门独立课程处理。
+- 映射用于课程列表和批量同步提示；下载目录继续使用 Moodle 原始课程名 / 班级代码，不会随着中文显示名称自动改名。
 
-下载只是第一步。这些命令把硬盘上的课件变成**可检索的知识库**，让 Claude Code、Claude Desktop 等 AI agent 直接带你复习——全部操作本地文件，**无需登录**。
+## 增量下载与文件校验
+
+每次运行同一个命令即可：
 
 ```bash
-python main.py --index                      # 索引本地课件（默认当前目录）
-python main.py --obsidian vault             # 导出 Obsidian 知识库
-python main.py --obsidian vault --copy-files  # 同时把原文件复制进库
-python main.py --notebook revision.ipynb --days 7   # 生成复习 notebook
+python main.py --all
 ```
 
-**MCP 服务 —— agent 的接入点**
+| 本地状态 / 本次扫描结果 | 处理方式 |
+| --- | --- |
+| 首次运行，本地没有课件 | 下载扫描到的文件 |
+| 新增资源或本地缺少某个文件 | 补下载对应文件 |
+| 已有文件通过基础格式检查，且与已有校验记录一致 | 跳过文件下载 |
+| 空文件、HTML 伪 PDF、明显不完整的 PDF 或无效的受检查 Office 文件 | 重新下载，校验通过后替换 |
+| 本地文件的 SHA-256 与已有记录不一致 | 重新下载并更新记录 |
+| 同一资源入口解析到的真实文件链接发生变化 | 重新下载并更新记录 |
+| 解析失败、HTTP 错误、返回登录页或文件校验失败 | 记录失败原因，继续处理其他文件 |
+
+每门课目录内的 `.moodle-downloads.json` 保存资源与文件名的对应关系、真实链接、大小及 SHA-256 校验和。请与课件一起保留；已有有效文件即使没有记录，也会先检查并建立记录。
+
+下载先写临时 `.part` 文件，校验通过后再替换目标文件。替换失败时保留原文件。同名但来源不同的资源会使用稳定后缀区分。
+
+需要区分以下行为：
+
+- **重复运行仍会联网扫描课程和资源页面**，只是已通过检查的课件不会再次下载。
+- **本地改过的课件也会被视为与记录不一致**，同步时可能被原版替换。请把批注版或自行修改的副本另存。
+- **不自动删除本地旧文件**。远端移除的课件或本地其他资料会保留。
+- **不保证发现同一 URL 下的远端内容替换**。目前未通过远端内容哈希、ETag 或 Last-Modified 判断这类更新；如果确认老师替换了文件但链接未变，可移走对应本地文件，再运行同步。
+- 文件检查属于基础格式与完整性检查，不等同于使用阅读器验证每一页内容。
+
+## 文件保存位置
+
+从仓库根目录启动时，课件保存在该目录下的独立课程文件夹中。例如：
+
+```text
+moodle_downloader_for_MUST/
+├── main.py
+├── config.toml
+├── moodle_cookies.json
+└── UNIVERSITY_CALCULUS_I(大學微積分I)_-_2609-BE101EX10-C371E1/
+    ├── .moodle-downloads.json
+    ├── 2_Limits and Continuity.pdf
+    ├── 3_Differentiation.pdf
+    └── Applications of Derivatives.pdf
+```
+
+目录由 Moodle 原始课程名生成：有班级代码时保留班级区分，没有班级代码时附加课程 ID。兼容的已有课程目录会继续复用。
+
+当前命令行流程会按课程生成相对当前工作目录的保存路径，**`[paths].save_dir` 不是全部课程的统一下载根目录**。为复用已有课件与登录缓存，请每次从同一个目录运行，并保留课程目录名称。
+
+下载的课件属于本地资料，不应随代码提交。Cookie 和同步记录已由 `.gitignore` 排除，但并非所有课程目录名称都在忽略规则中；提交代码时请检查暂存文件列表。
+
+## 常用配置
+
+编辑仓库根目录的 [config.toml](config.toml)，保存后重新运行。以下为相关配置节示例，请修改现有配置节：
+
+```toml
+[network]
+moodle_url = "https://moodle.must.edu.mo"
+request_timeout = 30
+
+[download]
+max_workers = 24
+
+[auth]
+login_timeout = 300
+login_check_interval = 1.0
+
+[filters]
+file_keywords = ["lecture"]
+file_extensions = [".pdf", ".ppt", ".pptx"]
+
+[ui]
+language = "zh"
+
+[browser]
+browser = ""  # 空字符串表示自动检测；也可填 chrome、edge、firefox
+```
+
+`--workers`、`--browser`、`--lang` 会覆盖对应配置。浏览器配置项名称是 `[browser].browser`。
+
+### 文件筛选
+
+对于页面或文件夹中识别到的直接文件链接，文件名命中关键词**或**扩展名匹配即可保留；默认关键词为 `lecture`，扩展名为 `.pdf`、`.ppt`、`.pptx`。Moodle 的文件资源入口（`mod/resource`）会直接解析，不受这组筛选条件限制。
+
+如果希望接受扫描器支持的全部文件类型，将两个列表都设为空：
+
+```toml
+[filters]
+file_keywords = []
+file_extensions = []
+```
+
+只清空其中一个列表时，另一个列表仍参与筛选。放宽筛选不会增加对外部平台或其他 Moodle 活动类型的支持。
+
+## 本地学习与 AI 接入
+
+下载之外，项目保留本地索引、Obsidian 导出、复习 notebook 和 MCP 服务。这些功能操作已下载的文件，**无需登录 Moodle**。
+
+```bash
+python main.py --index .                              # 索引当前目录
+python main.py --obsidian vault                       # 导出 Obsidian 笔记
+python main.py --obsidian vault --copy-files          # 同时复制课件
+python main.py --notebook revision.ipynb --days 7     # 生成 7 天复习 notebook
+```
+
+`--index <目录>` 可以指定包含课程文件夹的根目录，并与导出参数组合使用。Obsidian 默认跳过已存在的笔记；需要重新生成时加 `--overwrite`。Notebook 会写入指定文件，保留自己的编辑时请使用新文件名。
+
+索引保存为 `.moodle-index.json`。复习安排根据文件名推断的周次、材料类型和文件数量生成；笔记中的文字来自可提取的课件片段，不是自动生成的 AI 总结。
+
+可选安装 PDF 文本提取库：
+
+```bash
+python -m pip install pypdf
+```
+
+当前正文提取支持 `.txt`、`.md`、`.csv` 和可提取文字的 PDF；扫描图片 PDF 没有 OCR，Office 文件目前主要按文件名和元数据索引。索引的文本预览默认最多 2,000 字符，检索范围是文件名、课程名及已提取片段，不是所有文件的完整正文。
+
+### MCP 服务
+
+从仓库根目录、已安装依赖的 Python 环境启动：
 
 ```bash
 python -m moodle_scraper.mcp_server --root .
 ```
 
-这是一个标准 [MCP](https://modelcontextprotocol.io) 服务（stdio / JSON-RPC，零额外依赖），任何 MCP 客户端都能接。在 Claude Code 里注册：
+支持 stdio 的 MCP 客户端可将上述命令配置为服务。客户端的工作目录应设为仓库根目录；实际配置中使用虚拟环境 Python 和课件根目录的绝对路径，避免启动到其他环境。
 
-```bash
-claude mcp add moodle -- python -m moodle_scraper.mcp_server --root /path/to/materials
-```
-
-暴露 5 个工具：
-
-| 工具 | 作用 |
+| 工具 | 用途 |
 | --- | --- |
-| `list_courses` | 列出本地已有的课程与材料统计 |
-| `search_materials` | 按关键词全文检索课件 |
-| `get_material_text` | 取出某份材料的正文 |
-| `course_overview` | 按周次 / 类型总览一门课 |
-| `revision_plan` | 把材料分配到 N 天的复习计划，含 d-1/d-3/d-7 间隔重复 |
+| `list_courses` | 列出本地课程及材料数量 |
+| `search_materials` | 搜索文件名、课程名和已提取文本片段 |
+| `get_material_text` | 获取材料信息及可用文本片段 |
+| `course_overview` | 按周次与类型查看课程材料 |
+| `revision_plan` | 生成分天学习计划与间隔复习安排 |
 
-接上之后，直接用大白话跟 agent 说：
+例如，可以让 AI 客户端“根据大学微积分 I 的现有课件安排 5 天复习计划”。仓库内的 [moodle-revision Skill](skills/moodle-revision/SKILL.md) 提供复习工作流参考。
 
-```text
-我 PHYS1231 下周考试，帮我排个 5 天复习计划
-Week 3 讲了什么？用讲义里的内容出 5 道题考我
-把所有提到「热力学第二定律」的材料找出来
-```
+同步新增课件后，重新生成索引；正在运行的 MCP 服务需要重启以读取更新。MCP 服务本身在本机运行，连接云端 AI 客户端时，客户端读取的课件片段可能发送给相应服务商。
 
-agent 会调用上面的工具读你**本地真实的课件**来回答——不是凭空编的。
+## 常见问题
 
-**Obsidian 知识库**：每门课一个 MOC 索引页，材料按周分目录，每篇笔记带 YAML frontmatter（课程 / 周次 / 类型 / 标签）、原文件嵌入、`## 复习要点` 空白区和正文摘要，互相 wikilink 连通。
+### 下载的 PDF 打不开怎么办？
 
-**复习 Skill**：仓库内含 [`skills/moodle-revision/`](skills/moodle-revision/)，让支持 Skills 的 agent 学会一整套流程：选课 → 看总览 → 排间隔重复计划 → 用真实材料出题考你。
+旧版本可能把 Moodle 的 HTML 资源展示页直接保存为 `.pdf`，又因“文件已经存在”而一直跳过。当前版本会先解析真实文件链接，并拒绝把 HTML 或登录页面计为下载成功。
 
-> 💡 **全文检索是可选增强**：PDF 正文提取需要 `pip install pypdf`（懒加载，不装也能跑，只是检索退化为按文件名匹配）。`.txt` / `.md` 无需任何额外依赖。
+在原课件目录所在位置重新运行 `python main.py --all`，或 `python main.py 118832` 同步对应课程，即可检查并补下载这类错误文件。若仍失败，查看报告中的 HTTP、登录或文件校验错误。
 
-### 测试
+### 为什么没有中文课程名，或出现两门同名课？
+
+确认 `[course_names]` 的键与当前课程 ID 一致，且配置文件是有效 TOML。课程实例可能随学期或班级变化；两门同名课只要 ID 不同就会分别保留，请结合代码和 ID 选择。
+
+### 为什么某门课或文件没有下载？
+
+先确认学校 Moodle 中当前账号能看到并打开该课程与文件，再检查筛选条件和最终失败报告。空课程、尚未发布的资料、不同类型的活动或外部平台内容，不会因为开启 `--all` 自动成为可下载文件。
+
+### 浏览器打不开或登录超时怎么办？
+
+先用 `--browser chrome`、`--browser edge` 或 `--browser firefox` 指定已安装的浏览器；根据终端错误检查对应 WebDriver、浏览器版本和网络。登录耗时较长时可以提高 `[auth].login_timeout`。会话过期后，重新运行会触发登录。
+
+### 为什么下载结束后程序还在等待？
+
+命令行入口会等待按 Enter 后退出，便于查看报告。批量同步仍使用这一交互流程。
+
+### Windows 可以双击启动吗？
+
+仓库保留了 `启动下载器.bat`，其中部分默认课程和范围选项沿用旧项目。MUST 用户请优先使用本文命令；若使用该菜单，选“列出我已注册的课程”，进入课程列表后输入 `0`。该脚本调用系统的 `python`，请确认它已安装项目依赖。
+
+## 开发与测试
+
+安装测试依赖并运行离线测试：
 
 ```bash
+python -m pip install pytest
 python -m pytest tests/ -q
 ```
 
-全部 280+ 项测试完全离线运行——通过一个假 HTTP 客户端注入预设响应，不会碰真实网络。
+测试覆盖课程映射、单课 / 全部同步、资源页解析、HTTP 异常、文件校验、重复下载与本地学习功能，使用模拟响应及临时目录，不依赖学校账号。
 
-### 工程质量
+主要结构：
 
-- 全量类型标注：所有函数参数与返回值均有类型注解
-- HTTP 访问隐藏在一个 `Protocol` 接缝之后：扫描器与下载器只依赖接口，不依赖 `requests`，因此可以完全离线测试
-- 单个文件或页面失败不会中断整批下载，失败项会在最终报告中列出
-
-### 贡献
-
-欢迎提 Issue 和 PR。提交前请：
-
-1. 运行 `python -m pytest tests/ -q` 确保测试通过
-2. 保持全量类型标注，新增外部依赖时沿用 `HttpClient` Protocol 接缝模式
-3. 测试通过假 HTTP 客户端进行，不要访问真实网络
-4. 用户可见文案一律通过 `moodle_scraper/i18n.py` 的 `t()` 取词，中英目录须同步更新
-
-### 常见问题
-
-<details>
-<summary><b>Cookie 过期了怎么办？</b></summary>
-
-什么都不用做。工具每次启动都会先探测本地会话是否有效，失效时自动重新弹出浏览器让你登录一次，之后继续复用。
-</details>
-
-<details>
-<summary><b>文件下载到哪里了？</b></summary>
-
-仓库目录下、以课程名自动命名的文件夹，例如 `PHYS1231_Higher_Physics_1B/`。重复运行只补新增文件，不会重复下载。
-</details>
-
-<details>
-<summary><b>为什么有些文件没被扫描到？</b></summary>
-
-检查 `config.toml` 的 `[filters]`。默认只保留文件名含 `lecture` 或后缀为 `.pdf/.ppt/.pptx` 的文件——把两个列表都设为 `[]` 即可下载全部文件。
-</details>
-
-<details>
-<summary><b>我的账号信息安全吗？</b></summary>
-
-登录发生在你本机弹出的真实浏览器窗口里，工具不经手你的密码；它只把会话 cookie 保存在本地 `moodle_cookies.json`（已被 `.gitignore` 排除），不收集、不上传任何数据。代码全部开源，欢迎审计。
-</details>
-
-<details>
-<summary><b>AI 功能会把我的课件传到云端吗？</b></summary>
-
-工具本身不会。MCP 服务只在你本机运行，通过标准输入输出把数据交给你自己选择的 agent 客户端；索引、Obsidian 库、notebook 也都只写在本地磁盘。
-
-需要留意的是：**当你让某个云端 AI（比如 Claude）读取这些内容时，被读到的那部分自然会发送给该服务商**——这取决于你用的是哪个 agent，与本工具无关。想完全离线，可以接本地模型。
-</details>
-
-<details>
-<summary><b>没有 AI 也能用吗？</b></summary>
-
-当然。下载、扫描、过滤这些核心功能完全独立，AI 层是可选的。就算只用 `--obsidian` 导出知识库自己看，也不需要任何 agent。
-</details>
-
-### 许可证
-
-[MIT](LICENSE)
-
----
-
-**⭐ 如果它帮你省下了在 Moodle 里逐页点击的时间，欢迎点个 Star——这也是让更多同学发现它的最好方式。**
-
----
-
-## English Version
-
-### About
-
-`moodle-downloader` is a course-material downloader for UNSW Moodle (`moodle.telt.unsw.edu.au`). It signs you in through a real browser window (Okta SSO), lists the courses you are enrolled in, deep-scans course pages for PDFs, PPTs and other files, and downloads them in parallel. Re-running it only fetches what's new — think of it as "sync" for your lecture materials.
-
-**But downloading is only the start.** Since v2.2.0 it ships an [MCP](https://modelcontextprotocol.io) server that turns your materials into **a knowledge base AI agents can query directly** — connect Claude Code or Claude Desktop and it can search your files, summarise a course, build a spaced-repetition plan, and quiz you from your own lecture notes. One command also exports an Obsidian vault and a Jupyter revision notebook.
-
-👉 **[Jump to "AI agent revision"](#ai-revision-en)**
-
-<p align="center">
-  <img src="assets/demo-en.png" alt="moodle-downloader terminal demo (rendered from the real UI)" width="760">
-</p>
-
-### How it works
-
-1. **Log in once** — a real browser window opens for Okta verification; your session is saved and reused
-2. **Pick a course** — all your enrolled courses are listed automatically; just type a number
-3. **Deep scan** — the course page and its sub-pages are crawled to surface every nested file link
-4. **Parallel download** — multi-threaded downloads that skip anything already on disk
-5. **Hand it to AI** — index the files, connect an agent, start revising
-
-### Highlights
-
-- 🤖 **AI agent access (MCP)** — a built-in MCP server any client can connect to (Claude Code, Claude Desktop); 5 tools covering search, overview and revision planning, hand-rolled JSON-RPC with zero extra dependencies
-- 🧠 **Spaced-repetition planning** — materials ordered by week and kind, spread across N days, with automatic d-1 / d-3 / d-7 review slots
-- 📓 **Obsidian vault + Jupyter notebook** — one command each; notes ship with frontmatter, wikilinks and blank-recall self-testing
-- **Real-browser login with Okta SSO** — Selenium opens a browser window for you to sign in; cookies are persisted locally and reused, so login is usually one-time
-- **Lists your enrolled courses** — read straight from the Moodle dashboard; pick by number or enter a course ID directly
-- **Deep scan** — drills into course sub-pages to find nested / embedded files that other tools miss
-- **Parallel downloads** — 24 threads by default (configurable via `config.toml` or `--workers`)
-- **Polished terminal UI** — progress bars with ETA, scan-result tables with file-type icons, a download report dashboard and result banners (built on Rich)
-- **Incremental sync** — files already on disk are skipped; re-run anytime to fetch only what's new
-- **Atomic writes** — downloads go to a `.part` temp file, then rename; no corrupt half-downloads, ever
-- **Keyword and extension filters** — configure in `config.toml` to download only what you care about
-- **Auto-detects the course name** — files are saved into a matching folder
-- **Fully bilingual interface** (new in v2.1.0) — switch between Chinese and English with `--lang en` or one line of config
-- **Browser auto-detect** — tries Chrome → Edge → Firefox, or force one with `--browser`
-- **Crash guard** — the console never closes silently on error; you always see what went wrong
-- **Windows one-click launcher** — double-click `启动下载器.bat` and go
-- **Privacy-first** — everything runs locally; the tool never handles your password, collects nothing and uploads nothing
-
-### Install
-
-Requires **Python 3.11+**.
-
-```bash
-git clone https://github.com/KunyQi/moodle-downloader.git
-cd moodle-downloader
-pip install -r requirements.txt
-```
-
-Dependencies: `requests`, `beautifulsoup4`, `selenium`, `rich`.
-
-You also need at least one WebDriver matching your browser:
-
-| Browser | Driver |
+| 文件 / 目录 | 职责 |
 | --- | --- |
-| Chrome | [chromedriver](https://chromedriver.chromium.org/) |
-| Edge | [msedgedriver](https://developer.microsoft.com/microsoft-edge/tools/webdriver/) |
-| Firefox | [geckodriver](https://github.com/mozilla/geckodriver/releases) |
+| `main.py` | 参数解析及交互入口 |
+| `moodle_scraper/auth.py` | 浏览器登录与会话缓存 |
+| `moodle_scraper/scanner.py` | 课程列表、中文名称映射与真实文件链接解析 |
+| `moodle_scraper/downloader.py` | 增量同步、并行下载与同步记录 |
+| `moodle_scraper/files.py` | 基础文件检查与 SHA-256 校验 |
+| `moodle_scraper/config.py` | TOML 配置读取 |
+| `moodle_scraper/study/` | 本地索引、Obsidian 与 notebook |
+| `moodle_scraper/mcp_server.py` | 本地 MCP 工具服务 |
 
-### Usage
+提交 Issue 或 PR 请使用 [本仓库](https://github.com/FallaxAura-New/moodle_downloader_for_MUST)。代码约定见 [AGENTS.md](AGENTS.md)：保持类型注解，HTTP 行为通过 `HttpClient` 接口测试，新增界面文案同步维护中英文目录。
 
-```bash
-python main.py                    # login → list courses → pick & download
-python main.py 98120              # download course 98120 directly
-python main.py --browser chrome   # force a browser (chrome / edge / firefox)
-python main.py --lang en          # UI language (zh / en)
-python main.py --workers 8        # number of parallel download threads
-```
+## English quick start
 
-On Windows you can also just double-click `启动下载器.bat`.
+This fork adapts the downloader to **Macau University of Science and Technology (MUST)**. It supports browser login, Chinese course labels, all-course synchronization, and validation of existing downloads.
 
-The first run opens a browser window — complete the Okta login there. Your session is saved locally to `moodle_cookies.json`, so subsequent runs usually skip the login entirely. **That file holds your session credentials — never commit it or share it.**
-
-### Configuration
-
-Edit `config.toml` in the repo root; changes take effect on the next run:
-
-```toml
-[download]
-max_workers = 24                          # parallel download threads
-
-[filters]
-file_keywords = ["lecture"]               # filename keywords (empty = accept all)
-file_extensions = [".pdf", ".ppt", ".pptx"]  # extension whitelist (empty = accept all)
-
-[ui]
-language = "en"                           # UI language: "zh" or "en"
-
-[browser]
-# type = "chrome"                         # empty = auto-detect (chrome → edge → firefox)
-```
-
-<a id="ai-revision-en"></a>
-
-### 🤖 AI agent revision (new in v2.2.0)
-
-Downloading is only step one. These commands turn the files on your disk into a **searchable knowledge base** that Claude Code, Claude Desktop and other AI agents can revise with you — all local, **no login required**.
+Install **Python 3.11+**, Git, and Chrome, Edge, or Firefox with an available WebDriver. On macOS / Linux:
 
 ```bash
-python main.py --index                      # index local materials (defaults to cwd)
-python main.py --obsidian vault             # export an Obsidian vault
-python main.py --obsidian vault --copy-files  # also copy the source files in
-python main.py --notebook revision.ipynb --days 7   # build a revision notebook
+git clone https://github.com/FallaxAura-New/moodle_downloader_for_MUST.git
+cd moodle_downloader_for_MUST
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py --all --lang en
 ```
 
-**MCP server — the agent entry point**
+For Windows, use the PowerShell installation instructions above. Complete the school's login in the browser opened at [MUST Moodle](https://moodle.must.edu.mo/my/). The session is cached in `moodle_cookies.json`; keep it private. Press Enter to exit after the final report.
 
-```bash
-python -m moodle_scraper.mcp_server --root .
-```
+- Run `python main.py`, then enter `0` to sync all enrolled courses, or select a single course by its displayed number / Moodle ID.
+- Run `python main.py --all` again to scan for new resources and missing or invalid local files. Valid existing files are skipped; changed local hashes or changes to the recorded download URL for the same resource trigger a new download.
+- Chinese labels are configured by Moodle course ID under `[course_names]` in `config.toml`. The existing ten mappings apply to specific course instances; update them for your own courses. Course codes and IDs remain visible, and equal display names do not merge courses.
+- Keep each course's `.moodle-downloads.json` with its files. Downloads are stored in course folders under the working directory, using the original Moodle course name / class code.
+- Local edits may be replaced during synchronization. Keep annotated copies separately. Remote changes at an unchanged URL are not guaranteed to be detected; move the local file aside to request a fresh download. Local files removed from Moodle are not automatically deleted.
+- `--all` covers courses returned by the account's dashboard and supported file links, subject to filters and access. It is not a complete Moodle site backup.
 
-A standard [MCP](https://modelcontextprotocol.io) server (stdio / JSON-RPC, zero extra dependencies) that any MCP client can talk to. Register it with Claude Code:
+Optional local tools remain available: `--index`, `--obsidian`, `--notebook`, and `python -m moodle_scraper.mcp_server --root .`. PDF text extraction requires an optional library such as `pypdf`; search uses extracted previews, not guaranteed full-document text.
 
-```bash
-claude mcp add moodle -- python -m moodle_scraper.mcp_server --root /path/to/materials
-```
+## 致谢与许可证
 
-It exposes 5 tools:
+基于 KunyQi 的 `moodle-downloader` 项目开发，保留原项目的下载架构及可选学习功能，并针对 MUST 登录、课程名称和课件同步进行适配。
 
-| Tool | What it does |
-| --- | --- |
-| `list_courses` | List local courses with material counts |
-| `search_materials` | Full-text search across your course files |
-| `get_material_text` | Pull the text of one material |
-| `course_overview` | Break a course down by week and type |
-| `revision_plan` | Split the material across an N-day plan with d-1/d-3/d-7 review slots |
-
-Once connected, just talk to your agent in plain language:
-
-```text
-I have a PHYS1231 exam next week — build me a 5-day revision plan
-What was covered in week 3? Quiz me on it using the lecture notes
-Find every material that mentions the second law of thermodynamics
-```
-
-The agent answers by calling those tools against **your real local files** — not from memory.
-
-**Obsidian vault**: one MOC per course, materials bucketed by week, and every note carrying YAML frontmatter (course / week / kind / tags), an embed of the source file, a blank "key points" section and a text summary — all wikilinked together.
-
-**Revision Skill**: the repo ships [`skills/moodle-revision/`](skills/moodle-revision/), which teaches a Skills-capable agent the whole loop: pick a course → review the overview → build a spaced-repetition plan → quiz you from the real material.
-
-> 💡 **Full-text search is an optional upgrade**: extracting text from PDFs needs `pip install pypdf` (lazily imported — without it everything still runs, search just falls back to filename matching). `.txt` / `.md` need nothing extra.
-
-### Tests
-
-```bash
-python -m pytest tests/ -q
-```
-
-All 280+ tests run fully offline — they inject pre-registered responses through a fake HTTP client and never touch the network.
-
-### Engineering notes
-
-- Fully type-annotated: every function parameter and return value carries a type hint
-- HTTP access sits behind a `Protocol` seam: the scanner and downloader depend only on the interface, never on `requests`, which is what makes the test suite completely offline
-- Per-item failure isolation: one bad page or file never aborts the batch; failures are listed in the final report
-
-### Contributing
-
-Issues and PRs are welcome. Before submitting:
-
-1. Run `python -m pytest tests/ -q` and make sure everything passes
-2. Keep full type annotations, and follow the `HttpClient` Protocol seam pattern when adding external dependencies
-3. Write tests against the fake HTTP client — no real network access in tests
-4. Route every user-visible string through `t()` in `moodle_scraper/i18n.py`, keeping the zh and en catalogs in sync
-
-### FAQ
-
-<details>
-<summary><b>My cookies expired — what do I do?</b></summary>
-
-Nothing. On every run the tool first probes whether your saved session is still valid; if it isn't, a browser window opens automatically for a one-time re-login, and the new session is reused afterwards.
-</details>
-
-<details>
-<summary><b>Where do my files go?</b></summary>
-
-Into a folder named after the course, right in the repo directory — e.g. `PHYS1231_Higher_Physics_1B/`. Re-running only fetches new files; nothing is downloaded twice.
-</details>
-
-<details>
-<summary><b>Why are some files missing from the scan?</b></summary>
-
-Check `[filters]` in `config.toml`. By default only filenames containing `lecture` or ending in `.pdf/.ppt/.pptx` are kept — set both lists to `[]` to download everything.
-</details>
-
-<details>
-<summary><b>Is my account safe?</b></summary>
-
-You log in inside a real browser window on your own machine — the tool never sees your password. It only stores the session cookie locally in `moodle_cookies.json` (already in `.gitignore`), collects nothing, and uploads nothing. The code is fully open source — audit away.
-</details>
-
-<details>
-<summary><b>Do the AI features upload my materials to the cloud?</b></summary>
-
-Not by this tool. The MCP server runs entirely on your machine and hands data to whichever agent client *you* choose over stdio; the index, the Obsidian vault and the notebook are all written to local disk only.
-
-Worth being clear about: **when you ask a cloud AI (Claude, for instance) to read that content, the parts it reads do go to that provider** — that follows from the agent you picked, not from this tool. Point it at a local model if you want to stay fully offline.
-</details>
-
-<details>
-<summary><b>Can I use it without any AI?</b></summary>
-
-Absolutely. Downloading, scanning and filtering are completely independent — the AI layer is optional. Even `--obsidian` on its own is useful without ever connecting an agent.
-</details>
-
-### License
-
-[MIT](LICENSE)
-
----
-
-**⭐ If this tool saved you from clicking through Moodle page by page, consider leaving a star — it's the best way to help other students find it.**
+采用 [MIT License](LICENSE)。
