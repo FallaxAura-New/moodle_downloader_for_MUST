@@ -6,12 +6,12 @@ from __future__ import annotations
 from moodle_scraper.http import FakeHttpClient, HttpResponse
 from moodle_scraper.scanner import Scanner, ScanError
 
-COURSE_URL = "https://moodle.telt.unsw.edu.au/course/view.php?id=95383"
+COURSE_URL = "https://moodle.must.edu.mo/course/view.php?id=95383"
 PAGE_REL = "/mod/page/view.php?id=99"  # 相对路径（Moodle HTML 中的实际格式）
 PAGE_HTML = """<html><body>
-    <a href="https://moodle.au/pluginfile.php/123/lecture_1.pdf">lecture_1</a>
-    <a href="https://moodle.au/pluginfile.php/124/hidden_slides.pptx">hidden_slides</a>
-    <a href="https://moodle.au/pluginfile.php/125/readme.txt">readme</a>
+    <a href="https://moodle.must.edu.mo/pluginfile.php/123/lecture_1.pdf">lecture_1</a>
+    <a href="https://moodle.must.edu.mo/pluginfile.php/124/hidden_slides.pptx">hidden_slides</a>
+    <a href="https://moodle.must.edu.mo/pluginfile.php/125/readme.txt">readme</a>
 </body></html>"""
 
 
@@ -28,6 +28,11 @@ def _make_fake() -> FakeHttpClient:
     fake.add_response(COURSE_URL, HttpResponse(200, course_html, COURSE_URL))
     fake.add_response(PAGE_REL, HttpResponse(200, PAGE_HTML, PAGE_REL))
 
+    for resource_id, filename in [(1, "direct_lecture.pdf"), (2, "lab.pdf")]:
+        url = f"https://moodle.must.edu.mo/mod/resource/view.php?id={resource_id}"
+        fake.add_response(url, HttpResponse(200,
+            f'<div id="region-main"><a href="/pluginfile.php/{resource_id}/mod_resource/content/1/{filename}">Download</a></div>',
+            url, headers={"Content-Type": "text/html"}))
     return fake
 
 
@@ -45,7 +50,7 @@ class TestScanner:
         assert "Lab Manual" in names
         assert "lecture_1" in names
         assert "hidden_slides" in names
-        assert "readme.txt" in names
+        assert "readme" in names
 
     def test_scan_returns_resource_objects(self):
         fake = _make_fake()
@@ -76,7 +81,7 @@ class TestScanner:
     def test_scan_raises_on_login_page(self):
         fake = FakeHttpClient()
         fake.add_response(COURSE_URL, HttpResponse(200, "Log in to Moodle",
-                          "https://moodle.au/login/index.php"))
+                          "https://moodle.must.edu.mo/login/index.php"))
         scanner = Scanner(fake)
         import pytest
         with pytest.raises(ScanError):
@@ -104,7 +109,7 @@ class TestFetchCourseName:
     def test_from_title(self):
         fake = FakeHttpClient()
         fake.add_response(COURSE_URL, HttpResponse(200, """
-            <html><head><title>PHYS1231 Physics 1B — UNSW Moodle</title></head></html>""",
+            <html><head><title>PHYS1231 Physics 1B — MUST Moodle</title></head></html>""",
             COURSE_URL))
         scanner = Scanner(fake)
         name = scanner.fetch_course_name("95383")
@@ -123,17 +128,17 @@ class TestListCourses:
     """从仪表盘解析课程列表"""
 
     DASHBOARD_HTML = """<html><body>
-        <a href="https://moodle.telt.unsw.edu.au/course/view.php?id=95383">PHYS1231 – Physics 1B</a>
-        <a href="https://moodle.telt.unsw.edu.au/course/view.php?id=98120">MATH1231 – Calculus</a>
-        <a href="https://moodle.telt.unsw.edu.au/course/view.php?id=99666">COMP1511 – Programming</a>
-        <a href="https://moodle.telt.unsw.edu.au/some/other/page">Ignore me</a>
+        <a href="https://moodle.must.edu.mo/course/view.php?id=95383">PHYS1231 – Physics 1B</a>
+        <a href="https://moodle.must.edu.mo/course/view.php?id=98120">MATH1231 – Calculus</a>
+        <a href="https://moodle.must.edu.mo/course/view.php?id=99666">COMP1511 – Programming</a>
+        <a href="https://moodle.must.edu.mo/some/other/page">Ignore me</a>
     </body></html>"""
 
     def test_list_all_courses(self):
         fake = FakeHttpClient()
-        fake.add_response("https://moodle.telt.unsw.edu.au/my/",
+        fake.add_response("https://moodle.must.edu.mo/my/",
                           HttpResponse(200, self.DASHBOARD_HTML,
-                                       "https://moodle.telt.unsw.edu.au/my/"))
+                                       "https://moodle.must.edu.mo/my/"))
         scanner = Scanner(fake)
         courses = scanner.list_courses()
         assert len(courses) == 3
@@ -144,9 +149,9 @@ class TestListCourses:
 
     def test_list_sorted_by_name(self):
         fake = FakeHttpClient()
-        fake.add_response("https://moodle.telt.unsw.edu.au/my/",
+        fake.add_response("https://moodle.must.edu.mo/my/",
                           HttpResponse(200, self.DASHBOARD_HTML,
-                                       "https://moodle.telt.unsw.edu.au/my/"))
+                                       "https://moodle.must.edu.mo/my/"))
         scanner = Scanner(fake)
         courses = scanner.list_courses()
         names = [c.name for c in courses]
@@ -154,9 +159,9 @@ class TestListCourses:
 
     def test_list_login_page_returns_empty(self):
         fake = FakeHttpClient()
-        fake.add_response("https://moodle.telt.unsw.edu.au/my/",
+        fake.add_response("https://moodle.must.edu.mo/my/",
                           HttpResponse(200, "Log in to Moodle",
-                                       "https://moodle.au/login/index.php"))
+                                       "https://moodle.must.edu.mo/login/index.php"))
         scanner = Scanner(fake)
         assert scanner.list_courses() == []
 
@@ -169,16 +174,16 @@ class TestDiscoverCourses:
         # 模拟几个有效课程
         for cid in [95001, 95005, 95010]:
             fake.add_response(
-                f"https://moodle.telt.unsw.edu.au/course/view.php?id={cid}",
-                HttpResponse(200, f"""<html><head><title>Course {cid} — UNSW Moodle</title></head>
+                f"https://moodle.must.edu.mo/course/view.php?id={cid}",
+                HttpResponse(200, f"""<html><head><title>Course {cid} — MUST Moodle</title></head>
                     <body><h1 class="page-header-heading">Subject{cid} – Name</h1></body></html>""",
-                    f"https://moodle.telt.unsw.edu.au/course/view.php?id={cid}"),
+                    f"https://moodle.must.edu.mo/course/view.php?id={cid}"),
             )
         # 其他 ID 返回 404 或登录页
         for cid in [95002, 95003, 95004]:
             fake.add_response(
-                f"https://moodle.telt.unsw.edu.au/course/view.php?id={cid}",
-                HttpResponse(200, "Access denied", "https://moodle.au/login/index.php"),
+                f"https://moodle.must.edu.mo/course/view.php?id={cid}",
+                HttpResponse(200, "Access denied", "https://moodle.must.edu.mo/login/index.php"),
             )
 
         scanner = Scanner(fake)
@@ -191,8 +196,8 @@ class TestDiscoverCourses:
         fake = FakeHttpClient()
         for cid in range(99000, 99005):
             fake.add_response(
-                f"https://moodle.telt.unsw.edu.au/course/view.php?id={cid}",
-                HttpResponse(200, "Access denied", "https://moodle.au/login/index.php"),
+                f"https://moodle.must.edu.mo/course/view.php?id={cid}",
+                HttpResponse(200, "Access denied", "https://moodle.must.edu.mo/login/index.php"),
             )
         scanner = Scanner(fake)
         courses = scanner.discover_courses(99000, 99004, max_workers=1)

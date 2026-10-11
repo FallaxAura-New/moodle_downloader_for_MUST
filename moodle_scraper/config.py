@@ -22,12 +22,14 @@ class AppConfig:
     # 课程
     course_id: str = ""
     course_name: str = ""
+    course_names: dict[str, str] = field(default_factory=dict)
 
     # 路径
     save_dir: str = "downloads"
     cookie_file: str = "moodle_cookies.json"
 
     # 网络
+    moodle_url: str = "https://moodle.must.edu.mo"
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edge/120.0.0.0"
     request_timeout: int = 30
     download_chunk_size: int = 8192
@@ -60,8 +62,8 @@ class AppConfig:
             return cfg
 
         try:
-            with open(cfg_path, "rb") as f:
-                data = tomllib.load(f)
+            # Windows 编辑器可能写入 UTF-8 BOM；不能因此静默丢掉课程映射。
+            data = tomllib.loads(cfg_path.read_text(encoding="utf-8-sig"))
         except Exception:
             return cfg
 
@@ -69,7 +71,7 @@ class AppConfig:
         section_map = {
             "course": ["course_id", "course_name"],
             "paths": ["save_dir", "cookie_file"],
-            "network": ["user_agent", "request_timeout", "download_chunk_size"],
+            "network": ["moodle_url", "user_agent", "request_timeout", "download_chunk_size"],
             "download": ["max_workers"],
             "auth": ["login_timeout", "login_check_interval"],
             "filters": ["file_keywords", "file_extensions"],
@@ -83,6 +85,11 @@ class AppConfig:
                     if key in data[section]:
                         setattr(cfg, key, data[section][key])
 
+        cfg.course_names = {
+            str(key): value.strip()
+            for key, value in data.get("course_names", {}).items()
+            if isinstance(value, str) and value.strip()
+        }
         return cfg
 
     def ensure_dirs(self) -> None:

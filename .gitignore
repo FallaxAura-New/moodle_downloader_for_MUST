@@ -23,6 +23,7 @@ ARTS1630-*/
 
 # ─── 学习产物（本地生成，不入库）────────────────────
 .moodle-index.json
+.moodle-downloads.json
 vault/
 *_Vault/
 revision*.ipynb

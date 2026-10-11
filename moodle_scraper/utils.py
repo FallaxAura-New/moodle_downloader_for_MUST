@@ -7,6 +7,7 @@ Disclaimer: For students to download their own course materials only.
 from __future__ import annotations
 
 import re
+from urllib.parse import unquote, urlsplit
 
 
 def sanitize_filename(filename: str) -> str:
@@ -19,7 +20,7 @@ def sanitize_filename(filename: str) -> str:
 
 def extract_extension(url: str, default: str = ".pdf") -> str:
     """从下载 URL 中提取文件扩展名（如 .pdf、.pptx）"""
-    path = url.split("?")[0]          # 去掉 query 参数
+    path = unquote(urlsplit(url).path)
     filename = path.rstrip("/").split("/")[-1]
     if "." in filename:
         ext = filename.rsplit(".", 1)[-1].lower()
@@ -32,3 +33,9 @@ def extract_extension(url: str, default: str = ".pdf") -> str:
 def is_login_page(url: str, html_text: str) -> bool:
     """判断响应是否重定向到了登录页"""
     return "login" in url.lower() or "Log in" in html_text
+
+
+def looks_like_html(data: bytes) -> bool:
+    """识别被误存为课件的网页，包括带 BOM / 空白的登录页。"""
+    head = data[:4096].lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    return head.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))

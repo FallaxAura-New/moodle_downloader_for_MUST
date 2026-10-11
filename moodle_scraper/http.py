@@ -11,6 +11,9 @@ from typing import Iterator, Optional, Protocol
 
 import requests
 
+from .i18n import t
+from .utils import is_login_page, looks_like_html
+
 
 @dataclass
 class HttpResponse:
@@ -19,6 +22,10 @@ class HttpResponse:
     text: str
     url: str
     headers: dict[str, str] = field(default_factory=dict)
+
+    def header(self, name: str) -> str:
+        """兼容真实 HTTP 和离线响应的大小写不敏感头字段。"""
+        return next((v for k, v in self.headers.items() if k.lower() == name.lower()), "")
 
 
 class HttpClient(Protocol):
@@ -47,13 +54,21 @@ class RequestsHttpClient:
         self._session.cookies.update(cookies)
 
     def get(self, url: str, *, timeout: int = 30) -> HttpResponse:
-        resp = self._session.get(url, timeout=timeout)
-        return HttpResponse(
-            status_code=resp.status_code,
-            text=resp.text,
-            url=resp.url,
-            headers=dict(resp.headers),
-        )
+        # 资源页可能直接重定向到 PDF；解析链接时只取文件头，不先下载整份文件。
+        with self._session.get(url, timeout=timeout, stream=True) as resp:
+            resp.raise_for_status()
+            content_type = resp.headers.get("Content-Type", "").lower()
+            text_response = (
+                content_type.startswith("text/") or "html" in content_type
+                or "json" in content_type
+                or (not content_type and not resp.headers.get("Content-Disposition"))
+            )
+            return HttpResponse(
+                status_code=resp.status_code,
+                text=resp.text if text_response else "",
+                url=resp.url,
+                headers=dict(resp.headers),
+            )
 
     def get_stream(
         self, url: str, *, timeout: int = 30, chunk_size: int = 8192
@@ -61,9 +76,24 @@ class RequestsHttpClient:
         with self._session.get(
             url, stream=True, allow_redirects=True, timeout=timeout
         ) as resp:
+            resp.raise_for_status()
+            if is_login_page(resp.url, ""):
+                raise ValueError(t("scanner.session_expired"))
+            if "html" in resp.headers.get("Content-Type", "").lower():
+                raise ValueError(t("file.html"))
+            received = 0
             for chunk in resp.iter_content(chunk_size=chunk_size):
                 if chunk:
+                    if received == 0 and looks_like_html(chunk):
+                        raise ValueError(t("file.html"))
+                    received += len(chunk)
                     yield chunk
+            expected = resp.headers.get("Content-Length", "")
+            encoding = resp.headers.get("Content-Encoding", "identity").lower()
+            if received == 0:
+                raise ValueError(t("file.empty"))
+            if expected.isdigit() and encoding == "identity" and received != int(expected):
+                raise ValueError(t("file.incomplete"))
 
 
 class FakeHttpClient:

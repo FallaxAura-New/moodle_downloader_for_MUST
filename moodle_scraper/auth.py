@@ -1,4 +1,4 @@
-﻿"""
+"""
 downloader — 认证模块
 
 ⚠️ 免责声明: 本工具仅供学生下载本人已注册课程的课件。
@@ -148,7 +148,7 @@ class AuthManager:
     def _check_client(self, client: HttpClient) -> bool:
         """快速校验 cookie 是否仍有效"""
         try:
-            url = f"https://moodle.telt.unsw.edu.au/course/view.php?id={self._config.course_id}"
+            url = f"{self._config.moodle_url.rstrip('/')}/my/"
             resp = client.get(url, timeout=self._config.request_timeout)
             return "login" not in resp.url.lower() and "Log in" not in resp.text
         except Exception:
@@ -169,7 +169,7 @@ class AuthManager:
             json.dump(cookies, f)
 
     def _selenium_login(self, browser: str = "") -> Optional[list[dict]]:
-        """启动浏览器让用户完成 Okta 登录"""
+        """启动浏览器让用户完成 MUST Moodle 登录"""
         # 检测并启动浏览器
         try:
             browser_name, driver = _detect_browser(browser)
@@ -181,7 +181,8 @@ class AuthManager:
 
         driver_obj = driver
         try:
-            driver_obj.get("https://moodle.telt.unsw.edu.au/login/index.php")
+            base_url = self._config.moodle_url.rstrip("/")
+            driver_obj.get(f"{base_url}/my/")
             self._on_status("👉", t("auth.complete_login"))
             self._on_status("⏳", t("auth.auto_continue"))
 
@@ -189,7 +190,7 @@ class AuthManager:
             start = time.time()
             while time.time() - start < cfg.login_timeout:
                 current = driver_obj.current_url
-                if "moodle.telt.unsw.edu.au/my/" in current or "course/view.php" in current:
+                if current.startswith((f"{base_url}/my/", f"{base_url}/course/view.php")):
                     cookies = driver_obj.get_cookies()
                     self._on_status("✅", t("auth.login_success"))
                     return cookies

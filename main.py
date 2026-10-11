@@ -1,10 +1,12 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 downloader
 
 用法 / Usage:
       python main.py                    自动登录 → 列出课程 → 选择下载
                                         login → list courses → pick & download
+      python main.py --all              同步全部已注册课程，补齐缺失 / 损坏文件
+                                        sync all enrolled courses
       python main.py 98120              直接下载课程 98120
                                         download course 98120 directly
       python main.py --browser chrome   指定浏览器 / browser (chrome / edge / firefox)
@@ -67,6 +69,7 @@ try:
 
     if __name__ == "__main__":
         course_id = None
+        all_courses = False
         workers = None
         discover_range = None
         browser = ""
@@ -87,7 +90,10 @@ try:
 
         i = 0
         while i < len(args):
-            if args[i] == "--discover" and i + 1 < len(args):
+            if args[i] == "--all":
+                all_courses = True
+                i += 1
+            elif args[i] == "--discover" and i + 1 < len(args):
                 # --discover 需跟范围参数，不公开在 help 中
                 discover_range = args[i + 1]
                 i += 2
@@ -137,6 +143,7 @@ try:
 
         main(
             course_id=course_id,
+            all_courses=all_courses,
             workers=workers,
             discover_range=discover_range,
             browser=browser,
@@ -150,7 +157,7 @@ try:
         )
 
 except SystemExit:
-    pass
+    raise
 except KeyboardInterrupt:
     _show_crash("用户中断 (Ctrl+C)")
 except Exception:

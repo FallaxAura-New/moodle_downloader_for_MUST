@@ -10,6 +10,7 @@ save_dir = "downloads"
 cookie_file = "moodle_cookies.json"
 
 [network]
+moodle_url = "https://moodle.must.edu.mo"
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edge/120.0.0.0"
 request_timeout = 30
 download_chunk_size = 8192
@@ -33,3 +34,17 @@ language = "zh"
 [browser]
 # 浏览器类型，留空 = 自动检测 (chrome → edge → firefox)
 # type = "chrome"
+
+# 课程 ID → 易读名称；课程代码和 ID 仍会单独显示。
+# 同名课程使用不同 ID，不会合并或互相覆盖。
+[course_names]
+"118832" = "大学微积分 I"
+"118856" = "计算机程序设计"
+"120070" = "无机与分析化学"
+"120178" = "中文阅读与写作"
+"121506" = "英文 III"
+"121558" = "英文 IV"
+"121706" = "宪法与基本法概论"
+"122014" = "科技大师讲座"
+"122016" = "科技大师讲座"
+"122408" = "大学生活"

@@ -1,3 +1,20 @@
+<!-- 本地 MUST 适配说明；下方保留原项目介绍。 -->
+
+## 本地 MUST 版本
+
+当前登录和扫描站点为 `https://moodle.must.edu.mo`，可在 `config.toml` 的 `[network].moodle_url` 调整。
+`[course_names]` 按 Moodle 课程 ID 配置中文名称；课程列表同时保留班级代码和 ID，同名课程不会合并。
+
+- `python main.py`：输入 **0** 同步全部已注册课程，或按序号 / ID 下载单门课。
+- `python main.py --all`：直接进入全部课程同步，每门课无需重复确认。
+- 首次运行下载扫描到的课件；再次运行校验本地文件，只补下缺失、损坏或已知资源链接变更的文件。
+- 资源页面会先解析成真实文件链接；HTML、登录页、HTTP 错误及不完整 PDF 不会计为下载成功。旧的 HTML 伪 PDF 会在同步时自动重新下载。
+- 每门课目录中的 `.moodle-downloads.json` 记录文件名和校验和，请与课件一起保留。单门课失败不会中断其他课程，最终会列出失败项。
+
+默认筛选仍由 `[filters]` 控制；要接受子页面中的全部文件类型，将 `file_keywords` 和 `file_extensions` 都设为 `[]`。
+
+---
+
 <div align="center">
 
 # moodle-downloader

@@ -50,4 +50,8 @@ moodle_scraper/
 
 ## Notes
 
-<!-- 快速记录区，按需补充 -->
+- 本地适配 MUST；站点从 `AppConfig.moodle_url` 读取，中文课程名来自 `[course_names]`（以课程 ID 为键），保留代码及 ID。
+- `--all` 或课程菜单 `0` 只同步已注册课程，与单门课下载共用执行路径；不要复用 ID 范围探测来实现全量同步。
+- `Scanner` 先解析 Moodle 资源包装页，`Resource` 还携带 `filename`、`source_url`、`error`。解析失败应显示在汇总中，不能静默忽略。
+- `files.py` 负责内容校验；`Downloader` 只有校验通过后才能跳过或原子替换文件。`.moodle-downloads.json` 保存文件名 / 哈希映射，同名资源不能互相覆盖。
+- 批量课程处理使用配置副本；失败时不能显示“全部已是最新”。新增检查均使用离线响应和临时目录。

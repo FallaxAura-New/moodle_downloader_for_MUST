@@ -158,7 +158,8 @@ class RichUI:
             icon = self._file_icon(name)
             if i > 20:
                 break
-            table.add_row(str(i), f"{icon}  {name}", t("ui.pending"))
+            status = t("ui.scan_failed") if getattr(item, "error", "") else t("ui.pending")
+            table.add_row(str(i), f"{icon}  {name}", status)
 
         remaining = len(items) - 20
         if remaining > 0:
