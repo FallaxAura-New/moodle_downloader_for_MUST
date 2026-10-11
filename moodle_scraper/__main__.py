@@ -11,6 +11,7 @@ downloader
 from __future__ import annotations
 
 from dataclasses import replace
+import os
 from pathlib import Path
 import re
 import sys
@@ -25,6 +26,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         pass
 
 from .auth import AuthManager
+from .banner import BANNER_SHOWN_ENV
 from .config import AppConfig, config as global_config
 from .downloader import Downloader, DownloadResult
 from .i18n import DEFAULT_LANGUAGE, resolve_language, set_language, t
@@ -400,6 +402,8 @@ def main_impl(
             discover_start, discover_end = 0, 0
 
     ui = RichUI(config)
+    if os.environ.get(BANNER_SHOWN_ENV) != "1":
+        ui.welcome()
     if unsupported_lang:
         ui.status("⚠️", t("lang.unsupported", lang=unsupported_lang))
 

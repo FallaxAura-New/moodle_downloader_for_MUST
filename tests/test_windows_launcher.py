@@ -171,7 +171,7 @@ def test_cli_passthrough_preserves_arguments_paths_and_exit_status(monkeypatch, 
     monkeypatch.setattr("builtins.input", unexpected_input)
     def run(command, **kwargs):
         assert command == [sys.executable, str(launcher.PROJECT_ROOT / "main.py"), *args]
-        assert kwargs == {"cwd": launcher.PROJECT_ROOT, "check": False}
+        assert kwargs == {"cwd": launcher.PROJECT_ROOT, "check": False, "env": None}
         return subprocess.CompletedProcess(command, 2)
     monkeypatch.setattr(launcher.subprocess, "run", run)
     assert launcher.main(args) == 2

@@ -9,6 +9,12 @@ from __future__ import annotations
 DEFAULT_LANGUAGE = "zh"
 
 _ZH: dict[str, str] = {
+    "banner.school_ascii": "MACAU UNIVERSITY",
+    "banner.school_en_1": "Macau University of",
+    "banner.school_en_2": "Science and Technology",
+    "banner.product_ascii": "MUST Moodle Downloader",
+    "banner.school": "澳門科技大學",
+    "banner.product": "MUST Moodle 课件下载器",
     # Windows launcher
     'launcher.title': 'MUST Moodle 下载器 — Windows 功能菜单',
     'launcher.current_settings': '当前设置：浏览器 {browser} · 语言 {language} · 下载线程 {workers}',
@@ -164,6 +170,12 @@ _ZH: dict[str, str] = {
 }
 
 _EN: dict[str, str] = {
+    "banner.school_ascii": "MACAU UNIVERSITY",
+    "banner.school_en_1": "Macau University of",
+    "banner.school_en_2": "Science and Technology",
+    "banner.product_ascii": "MUST Moodle Downloader",
+    "banner.school": "澳門科技大學",
+    "banner.product": "MUST Moodle Downloader",
     # Windows launcher
     'launcher.title': 'MUST Moodle Downloader — Windows Menu',
     'launcher.current_settings': 'Settings: browser {browser} · language {language} · download workers {workers}',

@@ -36,6 +36,7 @@ from rich.table import Table
 from rich.text import Text
 
 from . import __version__
+from .banner import print_startup_banner
 from .config import AppConfig
 from .i18n import t
 
@@ -62,27 +63,8 @@ class RichUI:
     # ═════════════════════════════════════════════════════════
 
     def welcome(self) -> None:
-        """显示启动欢迎面板"""
-        header = Text("downloader", style=f"bold {C_PRIMARY}")
-        sub = Text(
-            t(
-                "ui.welcome_sub",
-                course=self.config.course_name,
-                course_id=self.config.course_id,
-                workers=self.config.max_workers,
-                save_dir=self.config.save_dir,
-            ),
-            style=C_MUTED,
-        )
-        panel = Panel(
-            Align.center(Group(header, sub)),
-            border_style=C_BORDER,
-            box=box.HEAVY,
-            padding=(1, 3),
-        )
-        console.print()
-        console.print(panel)
-        console.print()
+        """在登录、选课或本地操作之前显示 MUST 字符开场。"""
+        print_startup_banner(console, self.config)
 
     # ═════════════════════════════════════════════════════════
     # 状态消息

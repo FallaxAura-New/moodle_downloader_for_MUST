@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 import sys
 from typing import Sequence
 
+from .banner import BANNER_SHOWN_ENV, print_startup_banner
 from .config import AppConfig
 from .i18n import DEFAULT_LANGUAGE, resolve_language, set_language, t
 from .ui import console
@@ -37,6 +39,7 @@ class SessionOptions:
 class LaunchRequest:
     arguments: list[str]
     mcp: bool = False
+    banner_shown: bool = False
 
 
 def _command(request: LaunchRequest) -> list[str]:
@@ -47,7 +50,10 @@ def _command(request: LaunchRequest) -> list[str]:
 
 def _run(request: LaunchRequest) -> int:
     """同一解释器、固定工作目录、参数列表调用，保留空格且不执行 shell 文本。"""
-    return subprocess.run(_command(request), cwd=PROJECT_ROOT, check=False).returncode
+    env = None
+    if request.banner_shown and not request.mcp:
+        env = {**os.environ, BANNER_SHOWN_ENV: "1"}
+    return subprocess.run(_command(request), cwd=PROJECT_ROOT, check=False, env=env).returncode
 
 
 def _say(key: str, **values: object) -> None:
@@ -193,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     config = AppConfig.load()
     options = SessionOptions()
     set_language(resolve_language(config.language) or DEFAULT_LANGUAGE)
+    print_startup_banner(console, config)
     last_code = 0
     try:
         while True:
@@ -206,6 +213,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             request = _request(choice, options)
             if request is None:
                 continue
+            request.banner_shown = True
             try:
                 last_code = _run(request)
             except KeyboardInterrupt:

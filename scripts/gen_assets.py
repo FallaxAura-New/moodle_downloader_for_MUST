@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import io
+import re
 import sys
 import tempfile
 import time
@@ -26,6 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from rich.console import Console
+from rich.cells import get_character_cell_size
 from rich.terminal_theme import TerminalTheme
 
 import moodle_scraper.ui as ui_mod
@@ -39,13 +41,9 @@ SCRIPTS = ROOT / "scripts"
 
 # 示例课件（与真实课程页面的典型内容一致）
 DEMO_FILES = [
-    "Course Introduction.pdf",
-    "Topic 1 - Lecture Notes.pdf",
-    "Topic 1 Solved Examples.pdf",
-    "Workshop 1.pdf",
-    "Workshop 1 Solutions.pdf",
-    "Lab Manual (Week 2).pdf",
-    "Formula Sheet.pdf",
+    "2_Limits and Continuity.pdf",
+    "3_Differentiation.pdf",
+    "Applications of Derivatives.pdf",
 ]
 
 # 近似 GitHub 暗色的终端配色
@@ -60,26 +58,26 @@ THEME = TerminalTheme(
 
 # 优先等宽 + 中文全角对齐的字体栈（浏览器按可用性回退）
 FONT_STACK = (
-    "'Sarasa Mono SC','Maple Mono NF CN','Cascadia Mono',"
+    "'Sarasa Mono SC','Maple Mono NF CN','Cascadia Mono','Menlo',"
     "'Microsoft YaHei Mono','NSimSun',Consolas,monospace"
 )
 
 
 def _terminal_html(lang: str) -> str:
     set_language(lang)
-    console = Console(record=True, width=84, force_terminal=True, file=io.StringIO())
+    console = Console(record=True, width=84, height=50, force_terminal=True, file=io.StringIO())
     ui_mod.console = console
 
     cfg = AppConfig(
-        course_id="95383",
-        course_name="PHYS1231 Higher Physics 1B",
+        course_id="118832",
+        course_name="大学微积分 I",
         max_workers=24,
-        save_dir="PHYS1231_Higher_Physics_1B",
+        save_dir="UNIVERSITY_CALCULUS_I",
     )
     ui = RichUI(cfg)
 
     ui.welcome()
-    ui.status("📋", t("flow.detecting_course", course_id="95383"))
+    ui.status("📋", t("flow.detecting_course", course_id="118832"))
     ui.status("🔍", t("flow.scanning"))
     ui.show_scan_results([Resource(name=n, url="") for n in DEMO_FILES])
     console.print()
@@ -89,14 +87,24 @@ def _terminal_html(lang: str) -> str:
     progress.update(tid, completed=len(DEMO_FILES))
     console.print(progress.get_renderable())
 
-    ui.download_summary(new_count=6, total=len(DEMO_FILES), failed=[])
-    ui.result_banner(6)
+    ui.download_summary(new_count=3, total=len(DEMO_FILES), failed=[])
+    ui.result_banner(3)
 
     body = console.export_html(inline_styles=True, theme=THEME)
+    # HTML 的 CJK 回退字体不保证两格宽；按终端单元格排版，避免校徽汉字挤偏。
+    chunks = re.split(r"(<[^>]+>)", body)
+    for i in range(0, len(chunks), 2):
+        chunks[i] = "".join(
+            f'<span class="wide-cell">{char}</span>'
+            if get_character_cell_size(char) == 2 else char
+            for char in chunks[i]
+        )
+    body = "".join(chunks)
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
  body{{margin:0;background:#0d1117;}}
  #wrap{{display:inline-block;padding:26px 30px;background:#0d1117;border-radius:12px;}}
  pre,pre span{{font-family:{FONT_STACK} !important;font-size:15px;line-height:1.4;margin:0;}}
+ .wide-cell{{display:inline-block;width:2ch;text-align:center;}}
 </style></head><body><div id="wrap">{body}</div></body></html>"""
 
 
